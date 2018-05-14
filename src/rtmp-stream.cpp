@@ -5,7 +5,8 @@
 #include <opencv2/video.hpp>
 #include "clipp.h"
 
-extern "C" {
+extern "C" 
+{
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
@@ -189,24 +190,32 @@ void stream_video(double width, double height, int fps, string camID, int bitrat
     cout << "Could not write header!" << endl;
     exit(1);
   }
+  else
+	  cout<<"ret="<<ret<<endl;
 
   bool end_of_stream = false;
-  int i =0;
   do
   {
     cam >> image;
-	cout<<i++<<endl;
+
     const int stride[] = {static_cast<int>(image.step[0])};
+
     sws_scale(swsctx, &image.data, stride, 0, image.rows, frame->data, frame->linesize);
     frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
     write_frame(out_codec_ctx, ofmt_ctx, frame);
-  } while (!end_of_stream);
+
+  } while (!end_of_stream && !image.empty());
+  //} while (!end_of_stream );
 
   av_write_trailer(ofmt_ctx);
 
+  if( &frame)
   av_frame_free(&frame);
-  avcodec_close(out_codec_ctx);
+ // if( out_codec_ctx)
+ // avcodec_close(out_codec_ctx);
+  if( ofmt_ctx->pb )
   avio_close(ofmt_ctx->pb);
+  if( ofmt_ctx)
   avformat_free_context(ofmt_ctx);
 }
 
