@@ -25,11 +25,15 @@ cv::VideoCapture get_device(string camID, double width, double height)
   }
   else if (cam.open(atoi(camID.c_str())))
   {
-    cout << " open video capture device!" << endl;
+    cout << " open video capture device "<<camID<<" success !" << endl;
   }
 
   cam.set(cv::CAP_PROP_FRAME_WIDTH, width);
   cam.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+  
+  cout<<"width:"<<cv::CAP_PROP_FRAME_WIDTH
+      << " height:"<<cv::CAP_PROP_FRAME_HEIGHT
+      <<endl;
 
   return cam;
 }
@@ -191,12 +195,17 @@ void stream_video(double width, double height, int fps, string camID, int bitrat
     exit(1);
   }
   else
-	  cout<<"ret="<<ret<<endl;
+	  cout<<"avformat_write_header ret="<<ret<<endl;
 
   bool end_of_stream = false;
   do
   {
     cam >> image;
+    if(image.empty())
+    {
+       cout<<"image is NULL, quit..."<<endl;
+       break;
+    }
 
     const int stride[] = {static_cast<int>(image.step[0])};
 
@@ -204,8 +213,7 @@ void stream_video(double width, double height, int fps, string camID, int bitrat
     frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
     write_frame(out_codec_ctx, ofmt_ctx, frame);
 
-  } while (!end_of_stream && !image.empty());
-  //} while (!end_of_stream );
+  } while (!end_of_stream );
 
   av_write_trailer(ofmt_ctx);
 
