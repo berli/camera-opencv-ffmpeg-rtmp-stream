@@ -11,7 +11,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 find_package(OpenCV REQUIRED)
 
 set(INC_DIRS ${PROJECT_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
-set(LIBS ${OpenCV_LIBS} -lavcodec -lavformat -lavutil -lswscale -lavfilter -lavutil -lavdevice -lpthread -lz)
+set(LIBS ${OpenCV_LIBS} -lavcodec -lavformat -lavutil -lswscale -lavfilter -lavutil -lavdevice -lpthread )
 #set(LIBS ${OpenCV_LIBS} /usr/local/lib/libavcodec.a /usr/local/lib/libavformat.a -l/usr/local/lib/libavutil.a -lswscale -lavfilter -lavdevice -lpthread )
 
 set(PROJECT_INCLUDE_DIRS ${INC_DIRS})
