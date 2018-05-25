@@ -199,15 +199,26 @@ void stream_video(double width, double height, int fps, string camID, int bitrat
 
     do
     {
-      cam >> image;
-	  if(image.empty())
-		  break;
-	  cv::resize(image, image, cv::Size(width, height));
-      const int stride[] = {static_cast<int>(image.step[0])};
+		try
+		{
+			cam >> image; 
+	        if(image.empty())
+	            break;
+	        cv::resize(image, image, cv::Size(width, height));
+            const int stride[] = {static_cast<int>(image.step[0])};
 
-      sws_scale(swsctx, &image.data, stride, 0, image.rows, frame->data, frame->linesize);
-      frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
-      write_frame(out_codec_ctx, ofmt_ctx, frame);
+            sws_scale(swsctx, &image.data, stride, 0, image.rows, frame->data, frame->linesize);
+            frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
+            write_frame(out_codec_ctx, ofmt_ctx, frame);
+		}
+		catch(exception&e)
+		{
+			cout<<e.what()<<endl;
+		}
+		catch(...)
+		{
+			cout<<"unknow exception"<<endl;
+		}
 
     } while (true);
 
