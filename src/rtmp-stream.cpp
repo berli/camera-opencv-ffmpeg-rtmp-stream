@@ -150,73 +150,79 @@ void write_frame(AVCodecContext *codec_ctx, AVFormatContext *fmt_ctx, AVFrame *f
 
 void stream_video(double width, double height, int fps, string camID, int bitrate, string codec_profile, string server)
 {
-  av_register_all();
-  avformat_network_init();
+	//该函数在所有基于ffmpeg的应用程序中几乎都是第一个被调用的。只有调用了该函数，才能使用复用器，编码器等
+	av_register_all();
+	//使用ffmpeg类库进行开发的时候，打开流媒体（或本地文件）的函数是avformat_open_input()。  
+	//其中打开网络流的话，前面要加上函数avformat_network_init()
+	avformat_network_init();
 
-  const char *output = server.c_str();
-  int ret;
-  auto cam = get_device(camID, width, height);
-  vector<uint8_t> imgbuf(height * width * 3 + 16);
-  cv::Mat image(height, width, CV_8UC3, imgbuf.data(), width * 3);
-  AVFormatContext *ofmt_ctx = nullptr;
-  AVCodec *out_codec = nullptr;
-  AVStream *out_stream = nullptr;
-  AVCodecContext *out_codec_ctx = nullptr;
+    const char *output = server.c_str();
+    int ret;
+    auto cam = get_device(camID, width, height);
+    vector<uint8_t> imgbuf(height * width * 3 + 16);
+    cv::Mat image(height, width, CV_8UC3, imgbuf.data(), width * 3);
+    AVFormatContext *ofmt_ctx = nullptr;
+    AVCodec *out_codec = nullptr;
+    AVStream *out_stream = nullptr;
+    AVCodecContext *out_codec_ctx = nullptr;
 
-  initialize_avformat_context(ofmt_ctx, "flv");
-  initialize_io_context(ofmt_ctx, output);
+    initialize_avformat_context(ofmt_ctx, "flv");
+    initialize_io_context(ofmt_ctx, output);
 
-  out_codec = avcodec_find_encoder(AV_CODEC_ID_H264);
-  out_stream = avformat_new_stream(ofmt_ctx, out_codec);
-  out_codec_ctx = avcodec_alloc_context3(out_codec);
+    out_codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    out_stream = avformat_new_stream(ofmt_ctx, out_codec);
+    out_codec_ctx = avcodec_alloc_context3(out_codec);
 
-  set_codec_params(ofmt_ctx, out_codec_ctx, width, height, fps, bitrate);
-  initialize_codec_stream(out_stream, out_codec_ctx, out_codec, codec_profile);
+    set_codec_params(ofmt_ctx, out_codec_ctx, width, height, fps, bitrate);
+    initialize_codec_stream(out_stream, out_codec_ctx, out_codec, codec_profile);
 
-  out_stream->codecpar->extradata = out_codec_ctx->extradata;
-  out_stream->codecpar->extradata_size = out_codec_ctx->extradata_size;
+    out_stream->codecpar->extradata = out_codec_ctx->extradata;
+    out_stream->codecpar->extradata_size = out_codec_ctx->extradata_size;
 
-  av_dump_format(ofmt_ctx, 0, output, 1);
+    av_dump_format(ofmt_ctx, 0, output, 1);
 
-  auto *swsctx = initialize_sample_scaler(out_codec_ctx, width, height);
-  auto *frame = allocate_frame_buffer(out_codec_ctx, width, height);
+	//摄像头数据往往是RGB格式的，需要将其转换为YUV420P格式，所以要先做如下的准备工作
+    auto *swsctx = initialize_sample_scaler(out_codec_ctx, width, height);
+    auto *frame = allocate_frame_buffer(out_codec_ctx, width, height);
 
-  int cur_size;
-  uint8_t *cur_ptr;
+    int cur_size;
+    uint8_t *cur_ptr;
 
-  ret = avformat_write_header(ofmt_ctx, nullptr);
-  if (ret < 0)
-  {
-    cout << "Could not write header!" << endl;
-    exit(1);
-  }
-  else
-	  cout<<"ret="<<ret<<endl;
+    ret = avformat_write_header(ofmt_ctx, nullptr);
+    if (ret < 0)
+    {
+      cout << "Could not write header!" << endl;
+      exit(1);
+    }
+    else
+        cout<<"ret="<<ret<<endl;
 
-  bool end_of_stream = false;
-  do
-  {
-    cam >> image;
+    do
+    {
+      cam >> image;
+	  if(image.empty())
+		  break;
+	  cv::resize(image, image, cv::Size(width, height));
+      const int stride[] = {static_cast<int>(image.step[0])};
 
-    const int stride[] = {static_cast<int>(image.step[0])};
+      sws_scale(swsctx, &image.data, stride, 0, image.rows, frame->data, frame->linesize);
+      frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
+      write_frame(out_codec_ctx, ofmt_ctx, frame);
 
-    sws_scale(swsctx, &image.data, stride, 0, image.rows, frame->data, frame->linesize);
-    frame->pts += av_rescale_q(1, out_codec_ctx->time_base, out_stream->time_base);
-    write_frame(out_codec_ctx, ofmt_ctx, frame);
+    } while (true);
 
-  } while (!end_of_stream && !image.empty());
-  //} while (!end_of_stream );
+    av_write_trailer(ofmt_ctx);
 
-  av_write_trailer(ofmt_ctx);
+    if( &frame)
+      av_frame_free(&frame);
+   // if( out_codec_ctx)
+   // avcodec_close(out_codec_ctx);
+    if( ofmt_ctx->pb )
+      avio_close(ofmt_ctx->pb);
+    if( ofmt_ctx)
+      avformat_free_context(ofmt_ctx);
 
-  if( &frame)
-  av_frame_free(&frame);
- // if( out_codec_ctx)
- // avcodec_close(out_codec_ctx);
-  if( ofmt_ctx->pb )
-  avio_close(ofmt_ctx->pb);
-  if( ofmt_ctx)
-  avformat_free_context(ofmt_ctx);
+    sws_freeContext(swsctx);   
 }
 
 int main(int argc, char *argv[])
